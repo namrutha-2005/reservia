@@ -18,6 +18,10 @@ const RestaurantDetail = () => {
   const [loading, setLoading] = useState(true);
   const [isAdvanceBooking, setIsAdvanceBooking] = useState(false);
 
+  // Offers state
+  const [offers, setOffers] = useState([]);
+  const [selectedOfferId, setSelectedOfferId] = useState('');
+
   useEffect(() => {
     const fetchDetails = async () => {
       try {
@@ -31,6 +35,9 @@ const RestaurantDetail = () => {
           index === self.findIndex((t) => t.tableNumber === table.tableNumber)
         );
         setTables(uniqueTables);
+
+        const offRes = await axios.get(`/api/offers/restaurant/${id}`);
+        setOffers(offRes.data);
       } catch (error) {
         console.error('Error fetching details', error);
       } finally {
@@ -76,7 +83,8 @@ const RestaurantDetail = () => {
         tableId: isAdvanceBooking ? null : selectedTable._id,
         date,
         time,
-        guests
+        guests,
+        offerId: selectedOfferId || null
       }, {
         headers: { Authorization: `Bearer ${user.token}` }
       });
@@ -128,6 +136,17 @@ const RestaurantDetail = () => {
           <p style={{ color: '#fda085', fontWeight: 'bold', fontSize: '1.1rem', marginBottom: '10px' }}>{restaurant.cuisine}</p>
           <p style={{ color: '#555', marginBottom: '20px' }}>{restaurant.description}</p>
           <p><strong>Open:</strong> {restaurant.openingTime} - {restaurant.closingTime}</p>
+          
+          {offers.length > 0 && (
+            <div style={{ marginTop: '15px' }}>
+              <p style={{ fontSize: '0.85rem', color: '#888', marginBottom: '5px' }}>Available Offers:</p>
+              {offers.map(o => (
+                <span key={o._id} style={{ display: 'inline-block', background: '#eab308', color: '#fff', padding: '5px 12px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold', marginRight: '10px' }}>
+                   🏷️ {o.title}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -162,9 +181,10 @@ const RestaurantDetail = () => {
             ) : (
               <>
                 <h3 style={{ textAlign: 'center', marginBottom: '20px' }}>Select Your Table</h3>
-                <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '30px' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '30px', flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div className="table-node table-available" style={{ width: '20px', height: '20px' }}></div> Available</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div className="table-node table-booked" style={{ width: '20px', height: '20px' }}></div> Booked</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div className="table-node table-booked" style={{ width: '20px', height: '20px' }}></div> Booked (Time Conflict)</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div className="table-node table-occupied" style={{ width: '20px', height: '20px' }}></div> Reserved / Occupied Now</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div className="table-node table-selected" style={{ width: '20px', height: '20px' }}></div> Selected</div>
                 </div>
 
@@ -175,17 +195,19 @@ const RestaurantDetail = () => {
                     if (table.capacity !== requiredCapacity) return null;
 
                     const booked = isTableBooked(table._id);
+                    const isCurrentlyOccupied = table.status === 'occupied';
                     const selected = selectedTable?._id === table._id;
                     
                     let className = 'table-node table-available';
-                    if (booked) className = 'table-node table-booked';
+                    if (isCurrentlyOccupied) className = 'table-node table-occupied';
+                    else if (booked) className = 'table-node table-booked';
                     else if (selected) className = 'table-node table-selected';
 
                     return (
                       <div 
                         key={table._id} 
                         className={className} 
-                        onClick={() => !booked && setSelectedTable(table)}
+                        onClick={() => !booked && !isCurrentlyOccupied && setSelectedTable(table)}
                       >
                         <div style={{ textAlign: 'center' }}>
                           <div>T-{table.tableNumber}</div>
@@ -201,6 +223,56 @@ const RestaurantDetail = () => {
                     <p style={{ fontSize: '1.2rem', marginBottom: '15px' }}>
                       You have selected <strong>Table {selectedTable.tableNumber}</strong> ({selectedTable.capacity} Seats)
                     </p>
+
+                    {/* Simulation UI */}
+                    <div style={{ maxWidth: '400px', margin: '0 auto 20px', background: 'rgba(255,255,255,0.4)', padding: '20px', borderRadius: '15px' }}>
+                       <h4 style={{ margin: '0 0 15px' }}>Booking Summary</h4>
+                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                         <span>Subtotal ({guests} x $50)</span>
+                         <span>${guests * 50}</span>
+                       </div>
+                       
+                       {offers.length > 0 && (
+                         <div style={{ marginBottom: '15px', textAlign: 'left' }}>
+                           <label style={{ display: 'block', fontSize: '0.85rem', color: '#555', marginBottom: '5px' }}>Apply Offer:</label>
+                           <select className="input-field" value={selectedOfferId} onChange={e => setSelectedOfferId(e.target.value)} style={{ padding: '8px' }}>
+                             <option value="">-- No Offer --</option>
+                             {offers.map(o => (
+                               <option key={o._id} value={o._id} disabled={guests < o.minGuests}>
+                                 {o.title} {guests < o.minGuests ? `(Min ${o.minGuests} guests)` : ''}
+                               </option>
+                             ))}
+                           </select>
+                         </div>
+                       )}
+
+                       {(() => {
+                         let base = guests * 50;
+                         let disc = 0;
+                         if (selectedOfferId) {
+                           const off = offers.find(o => o._id === selectedOfferId);
+                           if (off && guests >= off.minGuests) {
+                             disc = off.discountType === 'percentage' ? (base * off.discountValue) / 100 : off.discountValue;
+                           }
+                         }
+                         return (
+                           <>
+                             {disc > 0 && (
+                               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#28a745', fontWeight: 'bold' }}>
+                                 <span>Discount</span>
+                                 <span>-${disc.toFixed(2)}</span>
+                               </div>
+                             )}
+                             <hr style={{ margin: '10px 0', border: '1px solid #ddd' }} />
+                             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                               <span>Total to Pay via App</span>
+                               <span>${Math.max(0, base - disc).toFixed(2)}</span>
+                             </div>
+                           </>
+                         )
+                       })()}
+                    </div>
+
                     <button className="btn-primary" onClick={handleBooking} style={{ fontSize: '1.1rem', padding: '15px 40px' }}>
                       Confirm Immediate Booking
                     </button>

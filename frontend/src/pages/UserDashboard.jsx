@@ -50,6 +50,7 @@ const UserDashboard = () => {
               <th style={{ padding: '10px' }}>Date</th>
               <th style={{ padding: '10px' }}>Time</th>
               <th style={{ padding: '10px' }}>Guests</th>
+              <th style={{ padding: '10px' }}>Bill Total</th>
               <th style={{ padding: '10px' }}>Status</th>
               <th style={{ padding: '10px' }}>Action</th>
             </tr>
@@ -69,6 +70,16 @@ const UserDashboard = () => {
                 <td style={{ padding: '10px' }}>{b.date}</td>
                 <td style={{ padding: '10px' }}>{b.time}</td>
                 <td style={{ padding: '10px' }}>{b.guests}</td>
+                <td style={{ padding: '10px' }}>
+                  {b.finalTotal !== undefined ? (
+                    <div>
+                      <strong style={{ fontSize: '1.1rem' }}>${b.finalTotal.toFixed(2)}</strong>
+                      {b.discountAmount > 0 && <div style={{ fontSize: '0.8rem', color: '#28a745' }}>Saved ${b.discountAmount.toFixed(2)}</div>}
+                    </div>
+                  ) : (
+                    <span style={{ color: '#888' }}>Not Simulated</span>
+                  )}
+                </td>
                 <td style={{ padding: '10px' }}>
                   <span style={{ 
                     padding: '4px 8px', borderRadius: '12px', fontSize: '0.85rem',
@@ -91,7 +102,7 @@ const UserDashboard = () => {
               </tr>
             )) : (
               <tr>
-                <td colSpan="8" style={{ padding: '20px', textAlign: 'center' }}>You have no bookings yet.</td>
+                <td colSpan="9" style={{ padding: '20px', textAlign: 'center' }}>You have no bookings yet.</td>
               </tr>
             )}
           </tbody>

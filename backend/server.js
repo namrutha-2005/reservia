@@ -7,6 +7,7 @@ import authRoutes from './routes/authRoutes.js';
 import restaurantRoutes from './routes/restaurantRoutes.js';
 import tableRoutes from './routes/tableRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
+import offerRoutes from './routes/offerRoutes.js';
 import User from './models/User.js';
 import bcrypt from 'bcryptjs';
 
@@ -22,6 +23,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/restaurants', restaurantRoutes);
 app.use('/api/tables', tableRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/offers', offerRoutes);
 
 const PORT = process.env.PORT || 5000;
 

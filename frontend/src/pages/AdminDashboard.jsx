@@ -17,6 +17,10 @@ const AdminDashboard = () => {
   const [selectedRestForTables, setSelectedRestForTables] = useState('');
   const [manageTables, setManageTables] = useState([]);
 
+  // Offers state
+  const [offers, setOffers] = useState([]);
+  const [newOffer, setNewOffer] = useState({ restaurantId: '', title: '', description: '', discountType: 'percentage', discountValue: 10, couponCode: '', minGuests: 1, validFrom: '', validTill: '', timeSlot: 'all' });
+
   const fetchRestaurants = async () => {
     const { data } = await axios.get('/api/restaurants');
     setRestaurants(data);
@@ -32,9 +36,20 @@ const AdminDashboard = () => {
     }
   };
 
+  const fetchOffers = async () => {
+    const token = user?.token;
+    if (token) {
+      const { data } = await axios.get('/api/offers', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setOffers(data);
+    }
+  };
+
   useEffect(() => {
     fetchRestaurants();
     fetchBookings();
+    fetchOffers();
   }, [user]);
 
   useEffect(() => {
@@ -100,14 +115,64 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleAddOffer = async (e) => {
+    e.preventDefault();
+    if (!newOffer.restaurantId) return alert('Please select a restaurant first');
+    try {
+      await axios.post('/api/offers', newOffer, {
+        headers: { Authorization: `Bearer ${user.token}` }
+      });
+      setNewOffer({ restaurantId: newOffer.restaurantId, title: '', description: '', discountType: 'percentage', discountValue: 10, couponCode: '', minGuests: 1, validFrom: '', validTill: '', timeSlot: 'all' });
+      fetchOffers();
+      alert('Offer added successfully!');
+    } catch (error) {
+      alert('Error adding offer');
+    }
+  };
+
+  const handleDeleteOffer = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this offer?')) return;
+    try {
+      await axios.delete(`/api/offers/${id}`, {
+        headers: { Authorization: `Bearer ${user.token}` }
+      });
+      fetchOffers();
+    } catch (error) {
+      alert('Error deleting offer');
+    }
+  };
+
   const handleCancelBooking = async (id) => {
     try {
       await axios.put(`/api/bookings/${id}/status`, { status: 'cancelled' }, {
         headers: { Authorization: `Bearer ${user.token}` }
       });
       fetchBookings();
+      if (selectedRestForTables) {
+        axios.get(`/api/tables/${selectedRestForTables}`).then(res => setManageTables(res.data));
+      }
     } catch (error) {
       alert('Error updating booking');
+    }
+  };
+
+  const handleChangeBookingStatus = async (id, status, tableId) => {
+    try {
+      let payload = { status };
+      if (status === 'checked-in' && !tableId) {
+         const selectedTable = window.prompt("Advance booking has no table assigned. Enter Table Object ID to check-in (You can copy this from the tables list below):");
+         if (!selectedTable) return alert("Table ID is required to check in.");
+         payload.tableId = selectedTable;
+      }
+      await axios.put(`/api/bookings/${id}/status`, payload, {
+        headers: { Authorization: `Bearer ${user.token}` }
+      });
+      fetchBookings();
+      if (selectedRestForTables) {
+         axios.get(`/api/tables/${selectedRestForTables}`).then(res => setManageTables(res.data));
+      }
+    } catch (error) {
+       alert(error.response?.data?.message || 'Error updating status');
     }
   };
 
@@ -165,7 +230,14 @@ const AdminDashboard = () => {
               <ul style={{ listStyle: 'none', padding: 0, marginTop: '15px', background: 'rgba(255,255,255,0.3)', borderRadius: '8px' }}>
                 {manageTables.map(t => (
                   <li key={t._id} style={{ padding: '10px', borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span><strong>Table {t.tableNumber}</strong> ({t.capacity} Seats)</span>
+                    <span>
+                      <strong style={{ userSelect: 'all', cursor: 'grab' }}>Table {t.tableNumber}</strong> ({t.capacity} Seats)
+                      <span style={{ marginLeft: '10px', padding: '3px 6px', borderRadius: '4px', fontSize: '0.8rem', background: t.status === 'occupied' ? '#f8d7da' : '#d4edda', color: t.status === 'occupied' ? '#721c24' : '#155724', fontWeight: 'bold' }}>
+                        {t.status === 'occupied' ? 'Occupied' : 'Available'}
+                      </span>
+                      <br/>
+                      <span style={{ fontSize: '0.7rem', color: '#aaa', userSelect: 'all' }}>ID: {t._id}</span>
+                    </span>
                     <button onClick={() => handleDeleteTable(t._id)} style={{ background: 'transparent', border: 'none', color: '#ff6b6b', cursor: 'pointer', textDecoration: 'underline' }}>Remove</button>
                   </li>
                 ))}
@@ -189,6 +261,58 @@ const AdminDashboard = () => {
             </select>
             <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '15px' }}>Add Table</button>
           </form>
+
+          <h2 style={{ marginTop: '40px' }}>Manage & Add Offers</h2>
+          <form onSubmit={handleAddOffer} style={{ marginTop: '20px', padding: '15px', background: 'rgba(255,255,255,0.4)', borderRadius: '8px' }}>
+            <h4 style={{ margin: '0 0 10px 0' }}>Create New Offer</h4>
+            <select className="input-field" value={newOffer.restaurantId} onChange={e => setNewOffer({...newOffer, restaurantId: e.target.value})} required>
+              <option value="">Select Restaurant...</option>
+              {restaurants.map(r => <option key={r._id} value={r._id}>{r.name}</option>)}
+            </select>
+            <input type="text" placeholder="Title (e.g., 20% OFF Dinner)" className="input-field" value={newOffer.title} onChange={e => setNewOffer({...newOffer, title: e.target.value})} required />
+            <input type="text" placeholder="Description" className="input-field" value={newOffer.description} onChange={e => setNewOffer({...newOffer, description: e.target.value})} required />
+            
+            <div style={{ display: 'flex', gap: '15px' }}>
+              <div style={{ flex: 1 }}>
+                 <select className="input-field" value={newOffer.discountType} onChange={e => setNewOffer({...newOffer, discountType: e.target.value})}>
+                   <option value="percentage">Percentage (%)</option>
+                   <option value="flat">Flat ($)</option>
+                 </select>
+              </div>
+              <div style={{ flex: 1 }}>
+                 <input type="number" placeholder="Value" className="input-field" value={newOffer.discountValue} onChange={e => setNewOffer({...newOffer, discountValue: Number(e.target.value)})} required />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '15px' }}>
+              <div style={{ flex: 1 }}>
+                 <label style={{ fontSize: '0.85rem' }}>Valid From</label>
+                 <input type="date" className="input-field" value={newOffer.validFrom} onChange={e => setNewOffer({...newOffer, validFrom: e.target.value})} required />
+              </div>
+              <div style={{ flex: 1 }}>
+                 <label style={{ fontSize: '0.85rem' }}>Valid Till</label>
+                 <input type="date" className="input-field" value={newOffer.validTill} onChange={e => setNewOffer({...newOffer, validTill: e.target.value})} required />
+              </div>
+            </div>
+
+            <input type="text" placeholder="Coupon Code (Optional)" className="input-field" value={newOffer.couponCode} onChange={e => setNewOffer({...newOffer, couponCode: e.target.value})} />
+            <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '15px' }}>Create Offer</button>
+          </form>
+
+          <div style={{ marginTop: '20px' }}>
+             {offers.map(o => (
+                <div key={o._id} style={{ padding: '15px', background: '#fff', borderRadius: '8px', marginBottom: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                     <strong>{o.title} <span style={{ color: 'green' }}>({o.discountType === 'percentage' ? o.discountValue + '%' : '$' + o.discountValue} OFF)</span></strong>
+                     <button onClick={() => handleDeleteOffer(o._id)} style={{ background: 'transparent', border: 'none', color: '#ff6b6b', cursor: 'pointer', textDecoration: 'underline' }}>Delete</button>
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: '#666', marginTop: '5px' }}>
+                    {o.restaurantId?.name || 'Unknown'} | {o.validFrom} to {o.validTill} | Code: {o.couponCode || 'N/A'}
+                  </div>
+                </div>
+             ))}
+          </div>
+
         </div>
 
         {/* Right Column: Manage Bookings */}
@@ -216,15 +340,21 @@ const AdminDashboard = () => {
                     <td style={{ padding: '10px' }}>
                       <span style={{ 
                         padding: '4px 8px', borderRadius: '12px', fontSize: '0.85rem',
-                        background: b.status === 'confirmed' ? '#d4edda' : b.status === 'cancelled' ? '#f8d7da' : '#e2e3e5',
-                        color: b.status === 'confirmed' ? '#155724' : b.status === 'cancelled' ? '#721c24' : '#383d41'
+                        background: b.status === 'confirmed' ? '#d4edda' : b.status === 'cancelled' ? '#f8d7da' : b.status === 'checked-in' ? '#fff3cd' : '#e2e3e5',
+                        color: b.status === 'confirmed' ? '#155724' : b.status === 'cancelled' ? '#721c24' : b.status === 'checked-in' ? '#856404' : '#383d41'
                       }}>
                         {b.status}
                       </span>
                     </td>
                     <td style={{ padding: '10px' }}>
                       {b.status === 'confirmed' && (
-                        <button onClick={() => handleCancelBooking(b._id)} style={{ background: 'transparent', border: 'none', color: 'red', cursor: 'pointer', textDecoration: 'underline' }}>Cancel</button>
+                        <div style={{ display: 'flex', gap: '5px' }}>
+                          <button onClick={() => handleChangeBookingStatus(b._id, 'checked-in', b.tableId?._id)} style={{ background: '#28a745', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>Check-In</button>
+                          <button onClick={() => handleCancelBooking(b._id)} style={{ background: 'transparent', border: 'none', color: 'red', cursor: 'pointer', textDecoration: 'underline', fontSize: '0.8rem' }}>Cancel</button>
+                        </div>
+                      )}
+                      {b.status === 'checked-in' && (
+                        <button onClick={() => handleChangeBookingStatus(b._id, 'completed')} style={{ background: '#007bff', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>Mark Completed</button>
                       )}
                     </td>
                   </tr>

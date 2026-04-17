@@ -1,6 +1,7 @@
 import express from 'express';
 import Booking from '../models/Booking.js';
 import Table from '../models/Table.js';
+import Offer from '../models/Offer.js';
 import { protect, adminProtect } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
@@ -37,7 +38,7 @@ router.get('/restaurant/:id/date/:date', async (req, res) => {
 
 // POST check availability & create booking
 router.post('/', protect, async (req, res) => {
-  const { restaurantId, tableId, date, time, guests } = req.body;
+  const { restaurantId, tableId, date, time, guests, offerId } = req.body;
   try {
     // Dynamically calculate duration
     let duration = 90; // Default changed from 60 to 90
@@ -60,9 +61,14 @@ router.post('/', protect, async (req, res) => {
     } else {
       // IMMEDIATE BOOKING
       if (!tableId) return res.status(400).json({ message: 'Table selection required for immediate booking' });
+      
+      const table = await Table.findById(tableId);
+      if (table && table.status === 'occupied') {
+        return res.status(400).json({ message: 'Table is currently occupied by guests who have not left yet.' });
+      }
 
       // Validation: Ensure table is perfectly free from overlaps
-      const existingBookings = await Booking.find({ restaurantId, tableId, date, status: 'confirmed' });
+      const existingBookings = await Booking.find({ restaurantId, tableId, date, status: { $in: ['confirmed', 'checked-in'] } });
       
       const toMinutes = (t) => {
         const [h, m] = t.split(':').map(Number);
@@ -71,9 +77,9 @@ router.post('/', protect, async (req, res) => {
       
       const isAvailable = !existingBookings.some(b => {
         const bStart = toMinutes(b.time);
-        const bEnd = bStart + b.duration;
+        const bEnd = bStart + b.duration + 15; // 15 min buffer
         const selectStart = toMinutes(time);
-        const selectEnd = selectStart + duration;
+        const selectEnd = selectStart + duration + 15; // 15 min buffer
         return Math.max(bStart, selectStart) < Math.min(bEnd, selectEnd);
       });
 
@@ -82,6 +88,25 @@ router.post('/', protect, async (req, res) => {
       }
 
       returnMessage = `Booking Successful! Your requested table is reserved for you for ${duration} mins.`;
+    }
+
+    // Billing Simulation
+    const baseTotal = guests * 50; // fixed $50 mock per guest
+    let discountAmount = 0;
+    let finalTotal = baseTotal;
+    let appliedOfferId = null;
+
+    if (offerId) {
+      const offer = await Offer.findById(offerId);
+      if (offer && offer.isActive && guests >= offer.minGuests) {
+        if (offer.discountType === 'percentage') {
+          discountAmount = (baseTotal * offer.discountValue) / 100;
+        } else {
+          discountAmount = offer.discountValue;
+        }
+        finalTotal = Math.max(0, baseTotal - discountAmount);
+        appliedOfferId = offer._id;
+      }
     }
 
     const booking = await Booking.create({
@@ -93,7 +118,11 @@ router.post('/', protect, async (req, res) => {
       time,
       guests,
       duration,
-      status: 'confirmed'
+      status: 'confirmed',
+      baseTotal,
+      discountAmount,
+      finalTotal,
+      appliedOfferId
     });
 
     res.status(201).json({ booking, message: returnMessage });
@@ -120,10 +149,28 @@ router.put('/:id/cancel', protect, async (req, res) => {
   }
 });
 
-// PUT change status (ADMIN ONLY) - completed, no-show
+// PUT change status (ADMIN ONLY) - completed, no-show, checked-in
 router.put('/:id/status', protect, adminProtect, async (req, res) => {
   try {
-    const booking = await Booking.findByIdAndUpdate(req.params.id, { status: req.body.status }, { new: true });
+    const { status, tableId } = req.body;
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+    
+    if (status === 'checked-in') {
+      const finalTableId = tableId || booking.tableId;
+      if (!finalTableId) return res.status(400).json({ message: 'Table must be assigned for check-in' });
+      
+      await Table.findByIdAndUpdate(finalTableId, { status: 'occupied' });
+      booking.tableId = finalTableId;
+      booking.isTableAssigned = true;
+    } else if (status === 'completed' || status === 'cancelled') {
+      if (booking.tableId) {
+        await Table.findByIdAndUpdate(booking.tableId, { status: 'available' });
+      }
+    }
+
+    booking.status = status;
+    await booking.save();
     res.json(booking);
   } catch (error) {
     res.status(500).json({ message: error.message });

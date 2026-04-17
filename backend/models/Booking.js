@@ -9,8 +9,12 @@ const bookingSchema = new mongoose.Schema({
   time: { type: String, required: true }, // Format HH:mm
   guests: { type: Number, required: true },
   duration: { type: Number, required: true }, // in minutes
-  status: { type: String, enum: ['confirmed', 'cancelled', 'completed', 'no-show'], default: 'confirmed' },
-  noShowProbability: { type: String, enum: ['low', 'medium', 'high'], default: 'low' }
+  status: { type: String, enum: ['confirmed', 'cancelled', 'completed', 'no-show', 'checked-in'], default: 'confirmed' },
+  noShowProbability: { type: String, enum: ['low', 'medium', 'high'], default: 'low' },
+  baseTotal: { type: Number, default: 0 },
+  discountAmount: { type: Number, default: 0 },
+  finalTotal: { type: Number, default: 0 },
+  appliedOfferId: { type: mongoose.Schema.Types.ObjectId, ref: 'Offer', default: null }
 }, { timestamps: true });
 
 export default mongoose.model('Booking', bookingSchema);
