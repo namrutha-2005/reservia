@@ -56,6 +56,7 @@ const AdminDashboard = () => {
     if (selectedRestForTables) {
       axios.get(`/api/tables/${selectedRestForTables}`).then(res => setManageTables(res.data)).catch(console.error);
     } else {
+      // eslint-disable-next-line
       setManageTables([]);
     }
   }, [selectedRestForTables]);
@@ -70,6 +71,7 @@ const AdminDashboard = () => {
       fetchRestaurants();
       alert('Restaurant added successfully!');
     } catch (error) {
+      console.error(error);
       alert('Error adding restaurant');
     }
   };
@@ -87,6 +89,7 @@ const AdminDashboard = () => {
       }
       alert('Table added successfully!');
     } catch (error) {
+      console.error(error);
       alert('Error adding table');
     }
   };
@@ -99,6 +102,7 @@ const AdminDashboard = () => {
       });
       fetchRestaurants();
     } catch (error) {
+      console.error(error);
       alert('Error deleting restaurant');
     }
   };
@@ -111,6 +115,7 @@ const AdminDashboard = () => {
       });
       setManageTables(manageTables.filter(t => t._id !== id));
     } catch (error) {
+      console.error(error);
       alert('Error deleting table');
     }
   };
@@ -126,6 +131,7 @@ const AdminDashboard = () => {
       fetchOffers();
       alert('Offer added successfully!');
     } catch (error) {
+      console.error(error);
       alert('Error adding offer');
     }
   };
@@ -138,6 +144,7 @@ const AdminDashboard = () => {
       });
       fetchOffers();
     } catch (error) {
+      console.error(error);
       alert('Error deleting offer');
     }
   };
@@ -152,6 +159,7 @@ const AdminDashboard = () => {
         axios.get(`/api/tables/${selectedRestForTables}`).then(res => setManageTables(res.data));
       }
     } catch (error) {
+      console.error(error);
       alert('Error updating booking');
     }
   };

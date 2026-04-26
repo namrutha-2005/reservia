@@ -1,8 +1,9 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import Booking from '../models/Booking.js';
 import Table from '../models/Table.js';
 import Offer from '../models/Offer.js';
-import { protect, adminProtect } from '../middlewares/authMiddleware.js';
+import { protect, adminProtect, adminOrOwnerProtect } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
 
@@ -30,6 +31,20 @@ router.get('/user/:id', protect, async (req, res) => {
 router.get('/restaurant/:id/date/:date', async (req, res) => {
   try {
     const bookings = await Booking.find({ restaurantId: req.params.id, date: req.params.date, status: 'confirmed' });
+    res.json(bookings);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET bookings for owner's restaurant
+router.get('/owner/my-restaurant-bookings', protect, adminOrOwnerProtect, async (req, res) => {
+  try {
+    const restaurant = await mongoose.models.Restaurant.findOne({ ownerId: req.user.id });
+    if (!restaurant) {
+       return res.json([]);
+    }
+    const bookings = await Booking.find({ restaurantId: restaurant._id }).populate('userId', 'name email').populate('tableId', 'tableNumber').populate('restaurantId', 'name location');
     res.json(bookings);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -149,12 +164,20 @@ router.put('/:id/cancel', protect, async (req, res) => {
   }
 });
 
-// PUT change status (ADMIN ONLY) - completed, no-show, checked-in
-router.put('/:id/status', protect, adminProtect, async (req, res) => {
+// PUT change status (ADMIN or OWNER) - completed, no-show, checked-in
+router.put('/:id/status', protect, adminOrOwnerProtect, async (req, res) => {
   try {
     const { status, tableId } = req.body;
     const booking = await Booking.findById(req.params.id);
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
+    
+    // If it's a restaurant owner, verify this booking belongs to their restaurant
+    if (req.user.role === 'restaurant_owner') {
+       const restaurant = await mongoose.models.Restaurant.findById(booking.restaurantId);
+       if (!restaurant || restaurant.ownerId?.toString() !== req.user.id) {
+           return res.status(403).json({ message: 'Not authorized to update this booking' });
+       }
+    }
     
     if (status === 'checked-in') {
       const finalTableId = tableId || booking.tableId;

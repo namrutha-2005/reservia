@@ -2,6 +2,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { MongoMemoryServer } from 'mongodb-memory-server';
 
 import authRoutes from './routes/authRoutes.js';
 import restaurantRoutes from './routes/restaurantRoutes.js';
@@ -12,6 +13,8 @@ import User from './models/User.js';
 import bcrypt from 'bcryptjs';
 
 dotenv.config();
+
+let mongoServer;
 
 const app = express();
 
@@ -25,7 +28,7 @@ app.use('/api/tables', tableRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/offers', offerRoutes);
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 // Admin Seeder
 const seedAdmin = async () => {
@@ -66,9 +69,19 @@ const connectDB = async () => {
     await mongoose.connect(process.env.MONGODB_URI);
     console.log('Connected to MongoDB Atlas');
   } catch (err) {
-    console.error('MongoDB connect error:', err.message);
-    console.error('Failed to connect to your database. Please check your internet connection, ensure your IP is whitelisted in MongoDB Atlas, and verify your MONGODB_URI.');
-    process.exit(1);
+    console.error('MongoDB Atlas connection failed:', err.message);
+    console.log('Falling back to MongoDB Memory Server for development...');
+    
+    try {
+      mongoServer = await MongoMemoryServer.create();
+      const mongoUri = mongoServer.getUri();
+      await mongoose.connect(mongoUri);
+      console.log('Connected to MongoDB Memory Server (Development Mode)');
+    } catch (memErr) {
+      console.error('MongoDB Memory Server error:', memErr.message);
+      console.error('Failed to connect to database. Please ensure MongoDB Atlas credentials are correct or try again later.');
+      process.exit(1);
+    }
   }
 
   seedAdmin();

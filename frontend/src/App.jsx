@@ -7,6 +7,7 @@ import Signup from './pages/Signup';
 import RestaurantDetail from './pages/RestaurantDetail';
 import AdminDashboard from './pages/AdminDashboard';
 import UserDashboard from './pages/UserDashboard';
+import RestaurantOwnerDashboard from './pages/RestaurantOwnerDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -22,6 +23,11 @@ function App() {
         <Route path="/admin" element={
           <ProtectedRoute role="admin">
             <AdminDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/owner-dashboard" element={
+          <ProtectedRoute role="restaurant_owner">
+            <RestaurantOwnerDashboard />
           </ProtectedRoute>
         } />
       </Routes>

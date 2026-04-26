@@ -32,6 +32,7 @@ const UserDashboard = () => {
       setBookings(bookings.map(b => b._id === id ? { ...b, status: 'cancelled' } : b));
       alert('Booking cancelled successfully.');
     } catch (error) {
+      console.error(error);
       alert('Failed to cancel booking.');
     }
   };

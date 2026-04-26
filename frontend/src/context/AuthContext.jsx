@@ -24,6 +24,7 @@ export const AuthProvider = ({ children }) => {
           }
         }
       } catch (error) {
+        console.error('Invalid token format', error);
         // Token is invalid/malformed
         localStorage.removeItem('userInfo');
         setUser(null);
@@ -39,8 +40,8 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
-  const signup = async (name, email, password) => {
-    const { data } = await axios.post('/api/auth/signup', { name, email, password });
+  const signup = async (name, email, password, role = 'customer') => {
+    const { data } = await axios.post('/api/auth/signup', { name, email, password, role });
     localStorage.setItem('userInfo', JSON.stringify(data));
     setUser(data);
     return data;

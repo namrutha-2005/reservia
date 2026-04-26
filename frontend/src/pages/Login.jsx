@@ -17,6 +17,8 @@ const Login = () => {
       console.log(`[Frontend Login] Success! Redirecting role: ${user.role}`);
       if (user.role === 'admin') {
         navigate('/admin');
+      } else if (user.role === 'restaurant_owner') {
+        navigate('/owner-dashboard');
       } else {
         navigate('/');
       }

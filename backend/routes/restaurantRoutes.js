@@ -1,7 +1,7 @@
 import express from 'express';
 import Restaurant from '../models/Restaurant.js';
 import Table from '../models/Table.js';
-import { protect, adminProtect } from '../middlewares/authMiddleware.js';
+import { protect, adminProtect, adminOrOwnerProtect } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
 
@@ -10,6 +10,17 @@ router.get('/', async (req, res) => {
   try {
     const restaurants = await Restaurant.find();
     res.json(restaurants);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET owner's restaurant
+router.get('/owner/me', protect, adminOrOwnerProtect, async (req, res) => {
+  try {
+    const restaurant = await Restaurant.findOne({ ownerId: req.user.id });
+    if (!restaurant) return res.status(404).json({ message: 'Restaurant not found' });
+    res.json(restaurant);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -26,10 +37,14 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST new restaurant (ADMIN)
-router.post('/', protect, adminProtect, async (req, res) => {
+// POST new restaurant (ADMIN or OWNER)
+router.post('/', protect, adminOrOwnerProtect, async (req, res) => {
   try {
-    const restaurant = await Restaurant.create(req.body);
+    const restaurantData = { ...req.body };
+    if (req.user.role === 'restaurant_owner') {
+      restaurantData.ownerId = req.user.id;
+    }
+    const restaurant = await Restaurant.create(restaurantData);
     
     // Auto-generate some starter tables for easier testing/setup
     const defaultTables = [
@@ -47,9 +62,16 @@ router.post('/', protect, adminProtect, async (req, res) => {
   }
 });
 
-// PUT update restaurant (ADMIN)
-router.put('/:id', protect, adminProtect, async (req, res) => {
+// PUT update restaurant (ADMIN or OWNER)
+router.put('/:id', protect, adminOrOwnerProtect, async (req, res) => {
   try {
+    const existingRestaurant = await Restaurant.findById(req.params.id);
+    if (!existingRestaurant) return res.status(404).json({ message: 'Restaurant not found' });
+    
+    if (req.user.role !== 'admin' && existingRestaurant.ownerId?.toString() !== req.user.id) {
+        return res.status(403).json({ message: 'Not authorized to update this restaurant' });
+    }
+
     const restaurant = await Restaurant.findByIdAndUpdate(req.params.id, req.body, { new: true });
     res.json(restaurant);
   } catch (error) {

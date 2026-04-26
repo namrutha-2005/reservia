@@ -20,6 +20,9 @@ router.post('/signup', async (req, res) => {
     if (role === 'admin' || email === 'admin@restaurant.com') {
       return res.status(403).json({ message: 'Admin registration is not allowed' });
     }
+    
+    // Explicitly allow only 'customer' or 'restaurant_owner'
+    const finalRole = role === 'restaurant_owner' ? 'restaurant_owner' : 'customer';
 
     // Checking if user already exists
     const existingUser = await User.findOne({ email });
@@ -34,7 +37,7 @@ router.post('/signup', async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      role: 'customer' // strictly customer
+      role: finalRole
     });
 
     if (user) {

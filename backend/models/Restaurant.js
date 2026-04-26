@@ -7,7 +7,8 @@ const restaurantSchema = new mongoose.Schema({
   description: { type: String },
   image: { type: String }, // image URL
   openingTime: { type: String, default: '10:00' },
-  closingTime: { type: String, default: '22:00' }
+  closingTime: { type: String, default: '22:00' },
+  ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }
 }, { timestamps: true });
 
 export default mongoose.model('Restaurant', restaurantSchema);

@@ -1,6 +1,7 @@
 import express from 'express';
 import Table from '../models/Table.js';
-import { protect, adminProtect } from '../middlewares/authMiddleware.js';
+import { protect, adminProtect, adminOrOwnerProtect } from '../middlewares/authMiddleware.js';
+import Restaurant from '../models/Restaurant.js';
 
 const router = express.Router();
 
@@ -14,9 +15,15 @@ router.get('/:restaurantId', async (req, res) => {
   }
 });
 
-// POST add table (ADMIN)
-router.post('/', protect, adminProtect, async (req, res) => {
+// POST add table (ADMIN or OWNER)
+router.post('/', protect, adminOrOwnerProtect, async (req, res) => {
   try {
+    if (req.user.role === 'restaurant_owner') {
+       const restaurant = await Restaurant.findById(req.body.restaurantId);
+       if (!restaurant || restaurant.ownerId?.toString() !== req.user.id) {
+           return res.status(403).json({ message: 'Not authorized to add table to this restaurant' });
+       }
+    }
     const table = await Table.create(req.body);
     res.status(201).json(table);
   } catch (error) {
@@ -24,9 +31,18 @@ router.post('/', protect, adminProtect, async (req, res) => {
   }
 });
 
-// PUT update table (ADMIN)
-router.put('/:id', protect, adminProtect, async (req, res) => {
+// PUT update table (ADMIN or OWNER)
+router.put('/:id', protect, adminOrOwnerProtect, async (req, res) => {
   try {
+    const tableToUpdate = await Table.findById(req.params.id);
+    if (!tableToUpdate) return res.status(404).json({ message: 'Table not found' });
+    
+    if (req.user.role === 'restaurant_owner') {
+       const restaurant = await Restaurant.findById(tableToUpdate.restaurantId);
+       if (!restaurant || restaurant.ownerId?.toString() !== req.user.id) {
+           return res.status(403).json({ message: 'Not authorized to update this table' });
+       }
+    }
     const table = await Table.findByIdAndUpdate(req.params.id, req.body, { new: true });
     res.json(table);
   } catch (error) {
@@ -34,9 +50,18 @@ router.put('/:id', protect, adminProtect, async (req, res) => {
   }
 });
 
-// DELETE table (ADMIN)
-router.delete('/:id', protect, adminProtect, async (req, res) => {
+// DELETE table (ADMIN or OWNER)
+router.delete('/:id', protect, adminOrOwnerProtect, async (req, res) => {
   try {
+    const tableToDelete = await Table.findById(req.params.id);
+    if (!tableToDelete) return res.status(404).json({ message: 'Table not found' });
+    
+    if (req.user.role === 'restaurant_owner') {
+       const restaurant = await Restaurant.findById(tableToDelete.restaurantId);
+       if (!restaurant || restaurant.ownerId?.toString() !== req.user.id) {
+           return res.status(403).json({ message: 'Not authorized to delete this table' });
+       }
+    }
     await Table.findByIdAndDelete(req.params.id);
     res.json({ message: 'Table removed' });
   } catch (error) {

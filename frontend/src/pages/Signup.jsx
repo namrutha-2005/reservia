@@ -6,6 +6,7 @@ const Signup = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isOwner, setIsOwner] = useState(false);
   const [error, setError] = useState('');
   const { signup } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -13,8 +14,13 @@ const Signup = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await signup(name, email, password);
-      navigate('/');
+      const role = isOwner ? 'restaurant_owner' : 'customer';
+      await signup(name, email, password, role);
+      if (role === 'restaurant_owner') {
+        navigate('/owner-dashboard');
+      } else {
+        navigate('/');
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Error creating account. Please try again later.');
     }
@@ -50,6 +56,16 @@ const Signup = () => {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
+          <div style={{ display: 'flex', alignItems: 'center', marginTop: '10px', justifyContent: 'center' }}>
+            <input 
+              type="checkbox" 
+              id="isOwner" 
+              checked={isOwner} 
+              onChange={(e) => setIsOwner(e.target.checked)} 
+              style={{ marginRight: '8px' }}
+            />
+            <label htmlFor="isOwner" style={{ color: '#555', cursor: 'pointer' }}>Register as Restaurant Owner</label>
+          </div>
           <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '20px', padding: '12px' }}>
             Sign Up
           </button>
